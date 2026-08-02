@@ -9,6 +9,7 @@ dependencies = [
     "uvicorn",
     "sqlalchemy>=2.0",
     "httpx",
+    "requests",
 ]
 
 [project.optional-dependencies]
