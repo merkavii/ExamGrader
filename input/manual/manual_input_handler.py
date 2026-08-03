@@ -40,6 +40,7 @@ def build_question_from_manual_input(
     numeric_tolerance: float | None = None,
     rubric=None,
     options: list[str] | None = None,
+    topic: str | None = None,
 ) -> Question:
     """
     ? یک Question معتبر از ورودی دستی معلم می‌سازد.
@@ -61,6 +62,7 @@ def build_question_from_manual_input(
         numeric_tolerance=numeric_tolerance,
         rubric=rubric,
         options=normalized_options,
+        topic=normalize_text(topic) if topic else None,
     )
 
 

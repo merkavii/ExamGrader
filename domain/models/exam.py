@@ -7,6 +7,7 @@
 # ? وابسته نشود.
 
 import uuid
+from datetime import datetime, timezone
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -50,6 +51,13 @@ class Question(BaseModel):
 
     # ? فقط برای MULTIPLE_CHOICE - لیست گزینه‌ها برای نمایش به معلم/دانش‌آموز
     options: list[str] | None = None
+
+    # ? برچسب موضوعی ساده (مثلاً "فتوسنتز") - برای تحلیل نقاط قوت/ضعف در
+    # ? فاز Analytics آینده. عمداً یک رشته ساده است، نه یک Entity جدا (Topic)،
+    # ! چون فعلاً فقط برچسب‌گذاری لازم است، نه مدیریت کامل موضوعات (سلسله‌مراتب،
+    # ! توضیحات و ...). اگر آن نیاز واقعی پیش آمد، می‌توان بدون شکستن این فیلد
+    # ! یک Entity کامل اضافه کرد.
+    topic: str | None = Field(default=None)
 
     @model_validator(mode="after")
     def validate_fields_match_question_type(self) -> "Question":
@@ -102,6 +110,10 @@ class Exam(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     title: str = Field(min_length=1)
     questions: list[Question] = Field(default_factory=list)
+
+    # ? زمان ساخت آزمون - برای مرتب‌سازی زمانی در تحلیل روند پیشرفت دانش‌آموز
+    # ? (فاز Analytics آینده). خودکار در لحظه ساخت پر می‌شود، معلم آن را وارد نمی‌کند.
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     @property
     def total_score(self) -> float:

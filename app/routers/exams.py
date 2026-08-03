@@ -54,6 +54,7 @@ def add_question(
         numeric_tolerance=request.numeric_tolerance,
         rubric=request.rubric,
         options=request.options,
+        topic=request.topic,
     )
     exam_repository.add_question(question)
     return question

@@ -23,6 +23,8 @@ class SqlStudentRepository:
         existing = self._session.get(StudentORM, student.id)
         if existing:
             existing.full_name = student.full_name
+            existing.student_code = student.student_code
+            existing.class_id = student.class_id
         else:
             self._session.add(student_to_orm(student))
         self._session.commit()
@@ -42,6 +44,14 @@ class SqlStudentRepository:
         ).all()
         orm_students = self._session.scalars(
             select(StudentORM).where(StudentORM.id.in_(student_ids))
+        ).all()
+        return [student_from_orm(s) for s in orm_students]
+
+    def list_by_class(self, class_id: str) -> list[Student]:
+        # ? برای نمایش «دانش‌آموزان این کلاس» - این چیزی است که در Class Detail
+        # ? پنل معلم لازم است (طبق درخواست: کلاس یا گروه آموزشی).
+        orm_students = self._session.scalars(
+            select(StudentORM).where(StudentORM.class_id == class_id)
         ).all()
         return [student_from_orm(s) for s in orm_students]
 

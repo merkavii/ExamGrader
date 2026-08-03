@@ -26,10 +26,18 @@ class QuestionCreateRequest(BaseModel):
     numeric_tolerance: float | None = None
     rubric: Rubric | None = None
     options: list[str] | None = None
+    topic: str | None = None
+
+
+class SchoolClassCreateRequest(BaseModel):
+    name: str
+    academic_year: str | None = None
 
 
 class StudentCreateRequest(BaseModel):
     full_name: str
+    student_code: str | None = None
+    class_id: str | None = None
 
 
 class StudentAnswerSubmitItem(BaseModel):

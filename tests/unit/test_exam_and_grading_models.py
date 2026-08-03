@@ -5,7 +5,7 @@
 import pytest
 from pydantic import ValidationError
 
-from domain.models.enums import GradingStatus, QuestionType
+from domain.models.enums import GradingMethod, GradingStatus, QuestionType
 from domain.models.exam import CorrectAnswer, Exam, Question
 from domain.models.grading_result import ConfidenceScore, GradeResult
 
@@ -47,6 +47,7 @@ def test_grade_result_rejects_score_above_max():
             reasoning="نمره اشتباه به‌عمد برای تست",
             confidence=ConfidenceScore(grading_confidence=90, final_score=90),
             status=GradingStatus.GRADED,
+            grading_method=GradingMethod.RULE_BASED,
             graded_by="TrueFalseGrader",
         )
 
@@ -61,6 +62,7 @@ def test_valid_grade_result():
         reasoning="پاسخ دانش‌آموز با پاسخ صحیح یکسان بود",
         confidence=ConfidenceScore(grading_confidence=100, final_score=100),
         status=GradingStatus.GRADED,
+        grading_method=GradingMethod.RULE_BASED,
         graded_by="TrueFalseGrader",
     )
     assert result.score == result.max_score

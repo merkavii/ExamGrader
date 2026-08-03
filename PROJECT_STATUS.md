@@ -1,119 +1,85 @@
-# Phase 3 Completion Report
+# Phase 4 Completion Report
 
 **پروژه:** دستیار هوشمند تصحیح آزمون (Exam Grader)
-**تاریخ آخرین به‌روزرسانی:** بعد از تکمیل Phase 3
+**تاریخ آخرین به‌روزرسانی:** بعد از تکمیل Phase 4
 
 ---
 
-## ۱. هدف Phase 3 چه بود؟
+## ۱. هدف Phase 4 چه بود؟
 
-افزودن قابلیت تصحیح دو نوع سؤالی که با منطق قانون‌محور (Rule-Based) قابل‌حل نیستند و نیاز به درک معنایی زبان دارند:
-
-- **Short Answer** (پاسخ کوتاه): تشخیص این‌که پاسخ دانش‌آموز از نظر معنایی با پاسخ صحیح یکی است، حتی اگر عبارت‌بندی دقیقاً یکسان نباشد.
-- **Essay** (پاسخ تشریحی کوتاه): نمره‌دهی بر اساس Rubric، با تفکیک امتیاز هر معیار.
-
-هدف فرعی مهم‌تر: پیاده‌سازی این دو Grader طوری که به **Ollama به‌طور مستقیم وابسته نباشند**، بلکه از یک Interface مستقل (`LLMClient`) استفاده کنند - طبق قانون اصلی پروژه که «Ollama فقط یکی از اجزای احتمالی است».
+طراحی و پیاده‌سازی دو مؤلفه:
+- **ConfidenceEngine**: ترکیب چند منبع اطمینان (کیفیت تصویر، اطمینان Extraction، اطمینان Grader) به یک `final_score` واحد و تعیین این‌که نتیجه باید خودکار پذیرفته شود یا نیاز به بازبینی معلم دارد.
+- **ReviewQueue**: مدیریت لیست نتایج نیازمند بازبینی و اعمال تصمیم نهایی معلم (Override).
 
 ## ۲. چه قابلیت‌هایی در این فاز پیاده‌سازی شدند؟
 
-- تصحیح پاسخ تشریحی با شکستن نمره بر اساس معیارهای Rubric (نه فقط یک نمره کلی)
-- تصحیح معنایی پاسخ کوتاه (قبول/رد + دلیل)
-- مکانیزم `confidence` که مدل زبانی خودش گزارش می‌دهد و بر اساس آن، نتیجه یا `GRADED` می‌شود یا `NEEDS_REVIEW`
-- مدیریت خطا در سه سطح: پاسخ خالی دانش‌آموز (قطعی، بدون تماس با LLM)، خرابی اتصال به LLM، و خروجی غیرقابل‌تجزیه (invalid JSON) - هر سه بدون Crash کردن سیستم
-- `GradingOrchestrator` به‌صورت اختیاری (`llm_client` پارامتر جدید) این دو Grader را ثبت می‌کند، بدون شکستن رفتار قبلی فاز ۲
+- ترکیب `image_quality` + `extraction_confidence` + `grading_confidence` با میانگین‌گیری روی منابع موجود (منابعی که `None` هستند نادیده گرفته می‌شوند)
+- سه سطح توصیفی برای نمایش در پنل معلم: `auto` (>=۹۰)، `suggested` (۷۰-۸۹)، `needs_review` (<۷۰) از طریق تابع `confidence_tier()`
+- قانون محافظتی: اگر یک نتیجه قبلاً توسط معلم Override شده باشد (`TEACHER_OVERRIDDEN`)، `ConfidenceEngine` هرگز آن را بازنویسی نمی‌کند
+- `ReviewQueue.filter_needing_review()` برای استخراج فقط موارد `NEEDS_REVIEW` از یک لیست نتایج
+- `ReviewQueue.apply_teacher_override()` برای ثبت تصمیم نهایی معلم، با اعتبارسنجی سخت‌گیرانه بازه نمره (`[0, max_score]`)
 
 ## ۳. چه فایل‌هایی ایجاد یا تغییر کردند؟
 
 **فایل‌های جدید:**
 
 ```
-ai/llm_client.py
-ai/ollama_provider.py
-ai/json_response_parser.py
-ai/prompts/essay_grading_prompt.py
-ai/prompts/short_answer_grading_prompt.py
-grading/graders/essay_grader.py
-grading/graders/short_answer_grader.py
-grading/llm_based_result.py
-tests/unit/fakes.py
-tests/unit/test_essay_grader.py
-tests/unit/test_short_answer_grader.py
+confidence/confidence_engine.py
+confidence/review_queue.py
+tests/unit/test_confidence_engine.py
+tests/unit/test_review_queue.py
+.gitignore
 ```
 
-**فایل‌های تغییریافته:**
-
-```
-grading/orchestrator.py     (پشتیبانی اختیاری از llm_client)
-tests/unit/test_grading_orchestrator.py   (تست جدید برای حالت llm_client فعال)
-pyproject.toml              (افزودن وابستگی requests)
-```
+**فایل‌های تغییریافته:** هیچ‌کدام از فایل‌های فازهای قبل تغییر نکردند (این فاز کاملاً افزایشی/additive بود).
 
 ## ۴. هر فایل چه مسئولیتی دارد؟
 
 | فایل | مسئولیت |
 |---|---|
-| `ai/llm_client.py` | Interface انتزاعی و مستقل از Provider خاص - فقط یک متد `complete(prompt) -> str` |
-| `ai/ollama_provider.py` | تنها پیاده‌سازی فعلی `LLMClient`، با فراخوانی HTTP API محلی Ollama |
-| `ai/json_response_parser.py` | پاک‌سازی و parse امن خروجی JSON مدل (حذف fence های ```json) |
-| `ai/prompts/essay_grading_prompt.py` | ساخت prompt سؤال تشریحی بر اساس Rubric |
-| `ai/prompts/short_answer_grading_prompt.py` | ساخت prompt پاسخ کوتاه معنایی |
-| `grading/graders/essay_grader.py` | نمره‌دهی پاسخ تشریحی؛ جمع امتیاز معیارها، مدیریت خطا |
-| `grading/graders/short_answer_grader.py` | نمره‌دهی پاسخ کوتاه معنایی (کامل/صفر) |
-| `grading/llm_based_result.py` | تابع کمکی مشترک برای ساخت `GradeResult` از خروجی LLM + تعیین موقت status بر اساس confidence |
-| `tests/unit/fakes.py` | `FakeLLMClient` و `RaisingLLMClient` برای تست بدون نیاز به Ollama واقعی |
+| `confidence/confidence_engine.py` | ترکیب چند منبع confidence به یک نتیجه واحد + تعیین `GradingStatus` نهایی؛ همچنین `confidence_tier()` برای سطح‌بندی نمایشی سه‌گانه |
+| `confidence/review_queue.py` | فیلتر کردن نتایج نیازمند بازبینی + اعمال Override دستی معلم با اعتبارسنجی |
+| `.gitignore` | نادیده گرفتن `__pycache__`، دیتابیس SQLite محلی (`*.db`)، محیط مجازی، `.env`، `.pytest_cache` و غیره |
 
 ## ۵. چه تصمیم‌های معماری مهمی گرفته شد؟
 
-1. **جداسازی کامل از Ollama از طریق `LLMClient`.** هیچ Grader ای مستقیماً `OllamaProvider` را import نمی‌کند - فقط `LLMClient`. جایگزینی مدل زبانی در آینده فقط نیاز به یک پیاده‌سازی جدید از این Interface دارد.
+1. **`app/routers/review.py` عمداً از این فاز حذف و به فاز ۵ منتقل شد.** طبق فازبندی اولیه قرار بود این فاز شامل یک Router API هم باشد، اما چون `GradeResult` هنوز هیچ‌جا در دیتابیس ذخیره نمی‌شود (این کار در فاز ۵ همراه با تصحیح دسته‌ای/تکی انجام می‌شود)، ساختن یک endpoint API که چیزی برای واکشی ندارد، کدی بدون کاربرد واقعی تولید می‌کرد. منطق `ReviewQueue` به‌صورت خالص (عملیات روی لیست در حافظه) ساخته شد تا مستقل از این‌که داده از کجا می‌آید، قابل تست و استفاده مجدد باشد؛ اتصال به دیتابیس/API فقط سیم‌کشی اضافه در فاز ۵ خواهد بود.
 
-2. **پاسخ خالی، قبل از تماس با LLM رد می‌شود.** این یک تصمیم قطعی (deterministic) است و نیازی به مدل زبانی ندارد - هم هزینه/زمان صرفه‌جویی می‌شود، هم قابل تست بدون mock است.
+2. **تمایز سه‌گانه (auto/suggested/needs_review) در `status` اعمال نشد، بلکه در یک تابع جدا (`confidence_tier`) قرار گرفت.** چون `GradingStatus` (طراحی‌شده در فاز ۰) فقط دو حالت عملیاتی معنادار دارد (`GRADED` قابل استفاده / `NEEDS_REVIEW` نیازمند توقف)، افزودن یک enum سوم فقط برای یک برچسب نمایشی، منطق بقیه سیستم (مثلاً فاز ۵ که بر اساس status فیلتر می‌کند) را بی‌دلیل پیچیده می‌کرد. تصمیم گرفته شد `confidence.final_score` عدد خام را نگه دارد و لایه نمایش (API/UI) با همان دو آستانه، سه سطح را خودش بسازد.
 
-3. **آستانه `confidence >= 70` برای تعیین `GRADED` در برابر `NEEDS_REVIEW`، عمداً موقتی و ساده نگه داشته شد** (با کامنت `todo` مشخص در کد) - چون طراحی واقعی `ConfidenceEngine` (ترکیب چند منبع اطمینان) وظیفه Phase 4 است، نه این فاز.
+3. **`ConfidenceEngine.evaluate()` هرگز `TEACHER_OVERRIDDEN` را بازنویسی نمی‌کند.** این یک قانون Audit Trail است: وقتی معلم دستی تصمیم گرفت، هیچ محاسبه خودکار بعدی (حتی اگر این تابع دوباره روی همان نتیجه صدا زده شود) نباید آن را لغو کند.
 
-4. **مدیریت خطا به‌جای Exception خام.** هر خطای اتصال یا parse، به یک `GradeResult` با `status=NEEDS_REVIEW` و `confidence=0` تبدیل می‌شود - نه Exception که کل فرآیند تصحیح دسته‌ای را متوقف کند (این طراحی، فاز ۵ - تصحیح دسته‌ای - را از قبل ساده‌تر می‌کند).
+4. **Immutability به‌جای تغییر درجا.** هم `ConfidenceEngine.evaluate()` و هم `ReviewQueue.apply_teacher_override()` یک نسخه *جدید* از `GradeResult` برمی‌گردانند (`model_copy`) و ورودی اصلی را تغییر نمی‌دهند - سازگار با این‌که Pydantic models در این پروژه به‌عنوان داده غیرقابل‌تغییر دامنه استفاده می‌شوند.
 
-5. **`GradingOrchestrator` بدون شکستن Backward Compatibility توسعه یافت.** پارامتر `llm_client` اختیاری است؛ اگر داده نشود، دقیقاً همان رفتار فاز ۲ حفظ می‌شود (تست‌های فاز ۲ بدون تغییر همچنان pass می‌شوند).
-
-6. **دفاع در برابر خطای مدل زبانی در جمع نمره.** `EssayGrader._sum_criteria_scores` حتی اگر مدل جمعاً بیشتر از `max_score` امتیاز بدهد، نتیجه را به `max_score` محدود می‌کند تا validator سطح `GradeResult` (که در فاز ۰ نوشته شد) خطا ندهد.
+5. **آستانه نمره معلم اعتبارسنجی سخت‌گیرانه دارد، نه فقط هشدار.** حتی معلم هم نمی‌تواند بیشتر از `max_score` سؤال، نمره override بدهد - این جلوی خطای تایپی ساده (مثلاً وارد کردن ۲۰ به‌جای ۲) را در همان لحظه می‌گیرد.
 
 ## ۶. چه وابستگی‌ها و کتابخانه‌هایی اضافه شدند؟
 
-- `requests` → برای فراخوانی HTTP API Ollama در `OllamaProvider`
-
-(بدون کتابخانه جدید دیگر - `pydantic`, `fastapi`, `sqlalchemy` و بقیه از فازهای قبل بودند)
+هیچ وابستگی جدیدی اضافه نشد - این فاز فقط از قابلیت‌های موجود Pydantic (`model_copy`) استفاده کرد.
 
 ## ۷. چه تست‌هایی انجام شدند و نتیجه آن‌ها چه بود؟
 
-**تست‌های جدید این فاز** (۱۳ تست، همه Unit، با `FakeLLMClient`/`RaisingLLMClient` - بدون نیاز به Ollama واقعی):
+**تست‌های جدید این فاز** (۱۲ تست، همه Unit، بدون نیاز به دیتابیس یا LLM):
 
-- `test_essay_grader.py` (۷ تست): جمع امتیاز معیارها، پاسخ داخل fence مارک‌داون، محدود کردن نمره بیش‌ازحد مدل، `NEEDS_REVIEW` روی confidence پایین، `NEEDS_REVIEW` روی JSON نامعتبر، `NEEDS_REVIEW` روی خطای اتصال، عدم تماس با LLM برای پاسخ خالی
-- `test_short_answer_grader.py` (۵ تست): تشخیص معادل معنایی متفاوت با پاسخ مرجع، پاسخ نادرست، confidence پایین، خطای اتصال، عدم تماس با LLM برای پاسخ خالی
-- `test_grading_orchestrator.py` (۱ تست جدید): تأیید این‌که با دادن `llm_client`، سؤال `SHORT_ANSWER` دیگر Unsupported نیست
+- `test_confidence_engine.py` (۸ تست): confidence بالا (فقط منبع Grading)، confidence متوسط (سطح suggested)، confidence پایین (NEEDS_REVIEW)، مرز دقیق ۷۰ (باید GRADED باشد)، مرز درست زیر ۷۰ (باید NEEDS_REVIEW باشد)، ترکیب سه منبع مختلف با میانگین‌گیری صحیح، عدم بازنویسی `TEACHER_OVERRIDDEN`، مرزهای `confidence_tier`
+- `test_review_queue.py` (۴ تست): فیلتر صحیح فقط موارد NEEDS_REVIEW، اعمال صحیح Override (نمره/دلیل/status)، رد نمره بیش‌ازحد، رد نمره منفی
 
-**وضعیت اجرا:** ⚠️ در محیط توسعه فعلی (این مکالمه)، دسترسی شبکه برای نصب `pydantic`/`pytest`/`requests` وجود نداشت، بنابراین تست‌ها با `python -m py_compile` روی همه فایل‌ها بررسی سینتکسی شدند (بدون خطا) اما **اجرای واقعی pytest هنوز توسط کاربر روی سیستم محلی انجام نشده و نتیجه‌اش تأیید نشده است.** این مورد باید قبل از شروع Phase 4 توسط کاربر تأیید شود:
-
-```bash
-pip install -e ".[dev]"
-pytest tests/unit -v
-```
+**وضعیت اجرا:** نکته: مثل فازهای قبل، در این محیط دسترسی شبکه برای نصب/اجرای واقعی `pytest` وجود نداشت - فقط `python -m py_compile` روی همه فایل‌ها (شامل ۱۲ تست جدید) بدون خطا اجرا شد. **اجرای واقعی pytest همچنان باید توسط کاربر روی سیستم محلی تأیید شود.**
 
 ## ۸. چه مواردی عمداً برای فازهای بعدی باقی مانده‌اند؟
 
-- **ترکیب واقعی Confidence از چند منبع** (کیفیت تصویر + OCR + Extraction + Grading) → Phase 4 (`ConfidenceEngine`)
-- **صف بازبینی معلم (`ReviewQueue`)** و نمایش موارد `NEEDS_REVIEW` → Phase 4
-- **اتصال `EssayGrader`/`ShortAnswerGrader` به API واقعی** (ساخت `GradingOrchestrator` با `OllamaProvider` واقعی در لایه `app/`) → Phase 5
-- **ذخیره‌سازی `GradeResult` در دیتابیس** (هنوز Repository ای برای آن نداریم) → Phase 5
-- **Endpoint های تصحیح تکی/دسته‌ای** (`POST /exams/{id}/grade`, `POST /exams/{id}/students/{id}/grade`) → Phase 5
-- **Matching، Fill in the Blank** → بعد از MVP
-- **تست Integration واقعی با یک نمونه Ollama در حال اجرا** (تست‌های فعلی فقط با Fake هستند) → می‌تواند در Phase 5 یا جدا اضافه شود
+- **اتصال واقعی `ConfidenceEngine`/`ReviewQueue` به جریان تصحیح دسته‌ای** (فراخوانی بعد از `GradingOrchestrator.grade_question()`) → Phase 5
+- **`app/routers/review.py`** (endpoint های `GET /review-queue`, `POST /review-queue/{result_id}/override`) → Phase 5، بعد از این‌که `GradeResult` قابل ذخیره شد
+- **`GradeResultRepository`** برای ذخیره/بازخوانی نتایج تصحیح از دیتابیس → Phase 5
+- **پر کردن واقعی `image_quality`/`extraction_confidence`** → بعد از MVP، وقتی Image Quality Pipeline و OCR اضافه شوند؛ `ConfidenceEngine` از قبل برای پذیرفتن این مقادیر آماده است و نیازی به تغییر نخواهد داشت
 
-## ۹. وضعیت فعلی پروژه برای شروع Phase 4 چگونه است؟
+## ۹. وضعیت فعلی پروژه برای شروع Phase 5 چگونه است؟
 
-آماده برای شروع، **مشروط به این‌که کاربر ابتدا `pytest` را روی سیستم محلی اجرا و نتیجه سبز را تأیید کند** (طبق محدودیت شبکه در بند ۷).
+آماده، **مشروط به تأیید نتیجه سبز `pytest` توسط کاربر روی سیستم محلی** (طبق بند ۷).
 
-از نظر معماری، همه پیش‌نیازهای Phase 4 (Confidence Engine + Review Queue) آماده‌اند:
-- `ConfidenceScore` از Phase 0 دقیقاً برای ترکیب چند منبع طراحی شده بود
-- همه Grader ها (قانون‌محور و LLM-based) از قبل یک `grading_confidence` معتبر در `GradeResult` برمی‌گردانند
-- `GradingStatus.NEEDS_REVIEW` از Phase 0 در Domain وجود دارد و توسط Phase 3 عملاً استفاده شد (فقط با آستانه ساده‌شده موقت)
+از نظر معماری، Phase 5 (تصحیح دسته‌ای/تکی + Aggregator) اکنون می‌تواند مستقیماً از سه بلوک آماده استفاده کند:
+- `GradingOrchestrator.grade_question()` از فاز ۲/۳ → تولید `GradeResult` خام
+- `ConfidenceEngine.evaluate()` از فاز ۴ → تکمیل confidence و تعیین status نهایی
+- `ReviewQueue` از فاز ۴ → آماده برای فیلتر/Override همین که نتایج قابل ذخیره شدند
 
-هیچ Blocker شناخته‌شده‌ای برای شروع Phase 4 وجود ندارد.
+هیچ Blocker شناخته‌شده‌ای وجود ندارد.

@@ -6,7 +6,7 @@
 # ? این تابع فقط برای جلوگیری از تکرار همین چند خط در سه فایل مختلف است -
 # ? منطق تصحیح داخل خود Grader ها می‌ماند، نه اینجا.
 
-from domain.models.enums import GradingStatus
+from domain.models.enums import GradingMethod, GradingStatus
 from domain.models.grading_result import ConfidenceScore, GradeResult
 
 
@@ -35,5 +35,6 @@ def build_deterministic_result(
         reasoning=reasoning,
         confidence=ConfidenceScore(grading_confidence=100, final_score=100),
         status=GradingStatus.GRADED,
+        grading_method=GradingMethod.RULE_BASED,
         graded_by=graded_by,
     )

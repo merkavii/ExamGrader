@@ -9,7 +9,7 @@
 # ! todo فعلاً فقط برای این‌که EssayGrader/ShortAnswerGrader به‌تنهایی قابل تست
 # ! todo و استفاده باشند، همین‌جا یک تصمیم ساده گرفته شده.
 
-from domain.models.enums import GradingStatus
+from domain.models.enums import GradingMethod, GradingStatus
 from domain.models.grading_result import ConfidenceScore, GradeResult
 
 _PROVISIONAL_REVIEW_THRESHOLD = 70
@@ -41,5 +41,6 @@ def build_llm_based_result(
             grading_confidence=grading_confidence, final_score=grading_confidence
         ),
         status=status,
+        grading_method=GradingMethod.LLM,
         graded_by=graded_by,
     )

@@ -42,3 +42,19 @@ class GradingStatus(str, Enum):
     GRADED = "graded"
     NEEDS_REVIEW = "needs_review"
     TEACHER_OVERRIDDEN = "teacher_overridden"
+
+
+class GradingMethod(str, Enum):
+    """
+    ? مشخص می‌کند نمره فعلی یک GradeResult توسط چه چیزی تولید/تغییر داده شده.
+
+    ! این Enum عمداً از GradingStatus جدا است چون دو محور متفاوت را نشان می‌دهند:
+    ! GradingStatus = "این نتیجه در چه مرحله‌ای از گردش‌کار است؟" (نیاز به بازبینی دارد؟)
+    ! GradingMethod  = "منشأ فعلی این نمره چیست؟" (قانون‌محور، مدل زبانی، یا معلم)
+    ! مثلاً یک GradeResult می‌تواند status=TEACHER_OVERRIDDEN و grading_method=TEACHER
+    ! داشته باشد - همزمان و بدون تناقض.
+    """
+
+    RULE_BASED = "rule_based"  # ? Grader های قطعی: MultipleChoice, TrueFalse, Numeric
+    LLM = "llm"                # ? Grader های مبتنی بر مدل زبانی: ShortAnswer, Essay
+    TEACHER = "teacher"        # ? معلم دستی نمره را ثبت یا Override کرده است

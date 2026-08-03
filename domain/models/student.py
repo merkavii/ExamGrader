@@ -15,6 +15,18 @@ class Student(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     full_name: str = Field(min_length=1)
 
+    # ? کد دانش‌آموزی که معلم/مدرسه تعیین می‌کند - جدا از id داخلی (UUID) که
+    # ? برای انسان قابل خواندن/استفاده نیست. اختیاری چون ممکن است معلم چنین
+    # ? کدی نداشته باشد.
+    student_code: str | None = Field(default=None, min_length=1)
+
+    # ? عضویت در یک کلاس/گروه آموزشی. طراحی فعلی عمداً ساده است: هر دانش‌آموز
+    # ! حداکثر یک کلاس فعلی دارد (نه تاریخچه چند ترم/سال). اگر بعداً نیاز به
+    # ! نگهداری تاریخچه عضویت در کلاس‌های مختلف شد، باید یک جدول جداگانه
+    # ! (مثلاً StudentClassHistory) اضافه شود - این فیلد نباید برای آن منظور
+    # ! بازیابی/سوءاستفاده شود.
+    class_id: str | None = Field(default=None)
+
 
 class AnswerContent(BaseModel):
     """
