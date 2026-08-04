@@ -12,6 +12,8 @@ from fastapi import Depends
 from sqlalchemy.orm import Session
 
 from ai.ollama_provider import OllamaProvider
+from analytics.class_analytics import ClassAnalyticsService
+from analytics.student_analytics import StudentAnalyticsService
 from config.settings import get_settings
 from grading.grading_service import GradingService
 from grading.orchestrator import GradingOrchestrator
@@ -95,3 +97,29 @@ def get_grading_service(
 
 
 GradingServiceDep = Annotated[GradingService, Depends(get_grading_service)]
+
+
+def get_class_analytics_service(
+    exam_repository: ExamRepositoryDep,
+    grade_result_repository: GradeResultRepositoryDep,
+) -> ClassAnalyticsService:
+    return ClassAnalyticsService(
+        exam_repository=exam_repository, grade_result_repository=grade_result_repository
+    )
+
+
+def get_student_analytics_service(
+    exam_repository: ExamRepositoryDep,
+    grade_result_repository: GradeResultRepositoryDep,
+) -> StudentAnalyticsService:
+    return StudentAnalyticsService(
+        exam_repository=exam_repository, grade_result_repository=grade_result_repository
+    )
+
+
+ClassAnalyticsServiceDep = Annotated[
+    ClassAnalyticsService, Depends(get_class_analytics_service)
+]
+StudentAnalyticsServiceDep = Annotated[
+    StudentAnalyticsService, Depends(get_student_analytics_service)
+]

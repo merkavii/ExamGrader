@@ -66,6 +66,14 @@ class SqlGradeResultRepository:
         ).all()
         return [grade_result_from_orm(r) for r in orm_results]
 
+    def get_by_student(self, student_id: str) -> list[GradeResult]:
+        # ? همه نتایج یک دانش‌آموز، در همه آزمون‌هایی که شرکت کرده - برای
+        # ? تحلیل روند پیشرفت و نقاط قوت/ضعف موضوعی که به یک آزمون محدود نیست.
+        orm_results = self._session.scalars(
+            select(GradeResultORM).where(GradeResultORM.student_id == student_id)
+        ).all()
+        return [grade_result_from_orm(r) for r in orm_results]
+
     def list_all(self) -> list[GradeResult]:
         orm_results = self._session.scalars(select(GradeResultORM)).all()
         return [grade_result_from_orm(r) for r in orm_results]
