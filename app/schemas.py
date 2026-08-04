@@ -66,3 +66,10 @@ class SheetStatusResponse(BaseModel):
     student_full_name: str
     answered_questions: int
     total_questions: int
+
+
+class TeacherOverrideRequest(BaseModel):
+    """? درخواست معلم برای جایگزینی نمره/دلیل یک GradeResult مشخص."""
+
+    final_score: float
+    teacher_reasoning: str

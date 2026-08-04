@@ -4,7 +4,7 @@
 
 from fastapi import FastAPI
 
-from app.routers import classes, exams, sheets, students
+from app.routers import classes, exams, grading, review, sheets, students
 from infrastructure.database.session import init_db
 
 app = FastAPI(title="Exam Grader API", version="0.1.0")
@@ -21,6 +21,8 @@ app.include_router(exams.router)
 app.include_router(students.router)
 app.include_router(sheets.router)
 app.include_router(sheets.sheet_status_router)
+app.include_router(grading.router)
+app.include_router(review.router)
 
 
 @app.get("/health")

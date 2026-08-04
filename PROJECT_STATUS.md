@@ -1,85 +1,89 @@
-# Phase 4 Completion Report
+# Phase 5 Completion Report
 
 **پروژه:** دستیار هوشمند تصحیح آزمون (Exam Grader)
-**تاریخ آخرین به‌روزرسانی:** بعد از تکمیل Phase 4
+**تاریخ آخرین به‌روزرسانی:** بعد از تکمیل Phase 5
 
 ---
 
-## ۱. هدف Phase 4 چه بود؟
+## ۱. هدف Phase 5 چه بود؟
 
-طراحی و پیاده‌سازی دو مؤلفه:
-- **ConfidenceEngine**: ترکیب چند منبع اطمینان (کیفیت تصویر، اطمینان Extraction، اطمینان Grader) به یک `final_score` واحد و تعیین این‌که نتیجه باید خودکار پذیرفته شود یا نیاز به بازبینی معلم دارد.
-- **ReviewQueue**: مدیریت لیست نتایج نیازمند بازبینی و اعمال تصمیم نهایی معلم (Override).
+اتصال واقعی همه بلوک‌های آماده‌شده در فازهای قبل (GradingOrchestrator، ConfidenceEngine، ReviewQueue، GradeResultRepository) به یکدیگر و به API، به‌طوری‌که معلم بتواند از طریق HTTP واقعی: یک برگه را تکی تصحیح کند، کل کلاس را دسته‌ای تصحیح کند، نتایج نهایی را ببیند، و موارد نیازمند بازبینی را مدیریت/Override کند.
 
 ## ۲. چه قابلیت‌هایی در این فاز پیاده‌سازی شدند؟
 
-- ترکیب `image_quality` + `extraction_confidence` + `grading_confidence` با میانگین‌گیری روی منابع موجود (منابعی که `None` هستند نادیده گرفته می‌شوند)
-- سه سطح توصیفی برای نمایش در پنل معلم: `auto` (>=۹۰)، `suggested` (۷۰-۸۹)، `needs_review` (<۷۰) از طریق تابع `confidence_tier()`
-- قانون محافظتی: اگر یک نتیجه قبلاً توسط معلم Override شده باشد (`TEACHER_OVERRIDDEN`)، `ConfidenceEngine` هرگز آن را بازنویسی نمی‌کند
-- `ReviewQueue.filter_needing_review()` برای استخراج فقط موارد `NEEDS_REVIEW` از یک لیست نتایج
-- `ReviewQueue.apply_teacher_override()` برای ثبت تصمیم نهایی معلم، با اعتبارسنجی سخت‌گیرانه بازه نمره (`[0, max_score]`)
+- **تصحیح یک برگه مشخص** (`POST /exams/{exam_id}/students/{student_id}/grade`) - دقیقاً همان قابلیتی که خیلی زودتر در پروژه («معلم صرفاً فقط تصحیح همه نمی‌زند») درخواست شده بود
+- **تصحیح دسته‌ای همه دانش‌آموزان یک آزمون** (`POST /exams/{exam_id}/grade`)
+- **مدیریت پاسخ‌های ثبت‌نشده**: اگر دانش‌آموز به سؤالی پاسخ نداده باشد، به‌جای رد کردن آن، یک پاسخ خالی ساخته می‌شود که Grader ها از قبل برایش نمره صفر و دلیل واضح تولید می‌کنند
+- **Idempotency واقعی**: تصحیح مجدد یک برگه، رکوردهای قبلی را overwrite می‌کند (تست شده) - نه insert جدید
+- **نمایش نتایج پایه** (`GET /exams/{exam_id}/results`) - خلاصه نمره هر دانش‌آموز، محاسبه‌شده از GradeResult های ذخیره‌شده
+- **صف بازبینی واقعی** (`GET /review-queue?exam_id=...`) و **Override معلم** (`POST /review-queue/{id}/override`) - هر دو حالا به دیتابیس واقعی وصل‌اند
 
 ## ۳. چه فایل‌هایی ایجاد یا تغییر کردند؟
 
 **فایل‌های جدید:**
-
 ```
-confidence/confidence_engine.py
-confidence/review_queue.py
-tests/unit/test_confidence_engine.py
-tests/unit/test_review_queue.py
-.gitignore
+grading/aggregator.py
+grading/grading_service.py
+app/routers/grading.py
+app/routers/review.py
+tests/unit/test_aggregator.py
+tests/integration/test_grading_service.py
+tests/integration/test_grading_and_review_api.py
 ```
 
-**فایل‌های تغییریافته:** هیچ‌کدام از فایل‌های فازهای قبل تغییر نکردند (این فاز کاملاً افزایشی/additive بود).
+**فایل‌های تغییریافته:**
+```
+domain/repositories/grade_result_repository.py   (+ get_by_id, list_all)
+infrastructure/repositories/sql_grade_result_repository.py  (+ get_by_id, list_all)
+app/schemas.py       (+ TeacherOverrideRequest)
+app/dependencies.py  (+ get_llm_client, get_grading_orchestrator, get_grading_service)
+app/main.py          (اتصال روترهای grading و review)
+```
 
 ## ۴. هر فایل چه مسئولیتی دارد؟
 
 | فایل | مسئولیت |
 |---|---|
-| `confidence/confidence_engine.py` | ترکیب چند منبع confidence به یک نتیجه واحد + تعیین `GradingStatus` نهایی؛ همچنین `confidence_tier()` برای سطح‌بندی نمایشی سه‌گانه |
-| `confidence/review_queue.py` | فیلتر کردن نتایج نیازمند بازبینی + اعمال Override دستی معلم با اعتبارسنجی |
-| `.gitignore` | نادیده گرفتن `__pycache__`، دیتابیس SQLite محلی (`*.db`)، محیط مجازی، `.env`، `.pytest_cache` و غیره |
+| `grading/aggregator.py` | جمع‌بندی چند `GradeResult` به یک `ExamScoreSummary` (نمره کل/درصد/تعداد نیازمند بازبینی) - محاسبه محض، بدون ذخیره |
+| `grading/grading_service.py` | هماهنگ‌کننده اصلی: `grade_student`, `grade_exam`, `get_exam_results` - پل بین Orchestrator/ConfidenceEngine/Repositoryها |
+| `app/routers/grading.py` | سه endpoint: تصحیح تکی، تصحیح دسته‌ای، نمایش نتایج |
+| `app/routers/review.py` | صف بازبینی + Override معلم |
 
 ## ۵. چه تصمیم‌های معماری مهمی گرفته شد؟
 
-1. **`app/routers/review.py` عمداً از این فاز حذف و به فاز ۵ منتقل شد.** طبق فازبندی اولیه قرار بود این فاز شامل یک Router API هم باشد، اما چون `GradeResult` هنوز هیچ‌جا در دیتابیس ذخیره نمی‌شود (این کار در فاز ۵ همراه با تصحیح دسته‌ای/تکی انجام می‌شود)، ساختن یک endpoint API که چیزی برای واکشی ندارد، کدی بدون کاربرد واقعی تولید می‌کرد. منطق `ReviewQueue` به‌صورت خالص (عملیات روی لیست در حافظه) ساخته شد تا مستقل از این‌که داده از کجا می‌آید، قابل تست و استفاده مجدد باشد؛ اتصال به دیتابیس/API فقط سیم‌کشی اضافه در فاز ۵ خواهد بود.
+1. **`GradingService` در لایه `grading/` قرار گرفت، نه در `app/routers/`.** این منطق تجاری است، نه HTTP - باید بدون FastAPI هم قابل تست/استفاده باشد (مثلاً از یک اسکریپت مستقل در آینده). تست‌های یکپارچگی این فاز عمداً هم در سطح Service (بدون HTTP) و هم در سطح API (با HTTP کامل) نوشته شدند تا هر دو لایه جدا تأیید شوند.
 
-2. **تمایز سه‌گانه (auto/suggested/needs_review) در `status` اعمال نشد، بلکه در یک تابع جدا (`confidence_tier`) قرار گرفت.** چون `GradingStatus` (طراحی‌شده در فاز ۰) فقط دو حالت عملیاتی معنادار دارد (`GRADED` قابل استفاده / `NEEDS_REVIEW` نیازمند توقف)، افزودن یک enum سوم فقط برای یک برچسب نمایشی، منطق بقیه سیستم (مثلاً فاز ۵ که بر اساس status فیلتر می‌کند) را بی‌دلیل پیچیده می‌کرد. تصمیم گرفته شد `confidence.final_score` عدد خام را نگه دارد و لایه نمایش (API/UI) با همان دو آستانه، سه سطح را خودش بسازد.
+2. **پاسخ‌های ثبت‌نشده با یک `StudentAnswer` خالیِ غیرذخیره‌شده پر می‌شوند**، نه با رد کردن سؤال یا خطا. این تصمیم باعث شد هیچ Grader ای نیازی به تغییر نداشته باشد - چون از فاز ۲/۳ همه Grader ها از قبل برای `answer_content` خالی رفتار درست (نمره صفر + دلیل واضح) دارند.
 
-3. **`ConfidenceEngine.evaluate()` هرگز `TEACHER_OVERRIDDEN` را بازنویسی نمی‌کند.** این یک قانون Audit Trail است: وقتی معلم دستی تصمیم گرفت، هیچ محاسبه خودکار بعدی (حتی اگر این تابع دوباره روی همان نتیجه صدا زده شود) نباید آن را لغو کند.
+3. **`get_exam_results` هرگز دوباره تصحیح نمی‌کند** - فقط از `GradeResult` های موجود می‌خواند. اگر معلم هنوز چیزی را تصحیح نکرده، لیست خالی برمی‌گرداند، نه خطا. این جدا نگه‌داشتن «مشاهده نتایج» از «اجرای تصحیح» عمدی است تا کلیک روی صفحه Results هزینه محاسباتی/تماس با LLM نداشته باشد.
 
-4. **Immutability به‌جای تغییر درجا.** هم `ConfidenceEngine.evaluate()` و هم `ReviewQueue.apply_teacher_override()` یک نسخه *جدید* از `GradeResult` برمی‌گردانند (`model_copy`) و ورودی اصلی را تغییر نمی‌دهند - سازگار با این‌که Pydantic models در این پروژه به‌عنوان داده غیرقابل‌تغییر دامنه استفاده می‌شوند.
+4. **`get_llm_client` یک Dependency جدا و Override-پذیر است.** این انتخاب مستقیماً در تست‌های سطح API استفاده شد: به‌جای اتصال واقعی به Ollama، `FakeLLMClient` جایگزین می‌شود - دقیقاً همان الگوی Dependency Injection که در فاز ۱ برای `get_db_session` جا افتاده بود.
 
-5. **آستانه نمره معلم اعتبارسنجی سخت‌گیرانه دارد، نه فقط هشدار.** حتی معلم هم نمی‌تواند بیشتر از `max_score` سؤال، نمره override بدهد - این جلوی خطای تایپی ساده (مثلاً وارد کردن ۲۰ به‌جای ۲) را در همان لحظه می‌گیرد.
+5. **Endpoint های `grade` و `results` زیر یک روتر مشترک با prefix `/exams/{exam_id}` قرار گرفتند** (نه در `exams.py`) چون مسئولیت مفهومی متفاوتی دارند (اجرای تصحیح، نه مدیریت تعریف آزمون) - این با تصمیم قبلی پروژه (جدا نگه‌داشتن `sheets.py` از `students.py`) هم‌راستاست.
 
 ## ۶. چه وابستگی‌ها و کتابخانه‌هایی اضافه شدند؟
 
-هیچ وابستگی جدیدی اضافه نشد - این فاز فقط از قابلیت‌های موجود Pydantic (`model_copy`) استفاده کرد.
+هیچ وابستگی جدیدی اضافه نشد.
 
 ## ۷. چه تست‌هایی انجام شدند و نتیجه آن‌ها چه بود؟
 
-**تست‌های جدید این فاز** (۱۲ تست، همه Unit، بدون نیاز به دیتابیس یا LLM):
+**تست‌های جدید این فاز** (۱۴ تست):
 
-- `test_confidence_engine.py` (۸ تست): confidence بالا (فقط منبع Grading)، confidence متوسط (سطح suggested)، confidence پایین (NEEDS_REVIEW)، مرز دقیق ۷۰ (باید GRADED باشد)، مرز درست زیر ۷۰ (باید NEEDS_REVIEW باشد)، ترکیب سه منبع مختلف با میانگین‌گیری صحیح، عدم بازنویسی `TEACHER_OVERRIDDEN`، مرزهای `confidence_tier`
-- `test_review_queue.py` (۴ تست): فیلتر صحیح فقط موارد NEEDS_REVIEW، اعمال صحیح Override (نمره/دلیل/status)، رد نمره بیش‌ازحد، رد نمره منفی
+- `test_aggregator.py` (۳ تست): جمع صحیح نمرات، شمارش موارد نیازمند بازبینی، مدیریت لیست خالی بدون تقسیم بر صفر
+- `test_grading_service.py` (۶ تست، یکپارچگی با دیتابیس واقعی): ترکیب سؤال قانون‌محور + LLM، مدیریت پاسخ خالی، عدم تکثیر رکورد در تصحیح مجدد، تصحیح دسته‌ای چند دانش‌آموز، خلاصه نتایج صحیح، خطای صریح برای آزمون/دانش‌آموز ناموجود
+- `test_grading_and_review_api.py` (۴ تست، سطح HTTP کامل با FakeLLMClient): تصحیح تکی + مشاهده نتایج، تصحیح دسته‌ای، جریان کامل صف بازبینی + Override (شامل تأیید حذف از صف بعد از Override)، رد Override با نمره بیش‌ازحد
 
-**وضعیت اجرا:** نکته: مثل فازهای قبل، در این محیط دسترسی شبکه برای نصب/اجرای واقعی `pytest` وجود نداشت - فقط `python -m py_compile` روی همه فایل‌ها (شامل ۱۲ تست جدید) بدون خطا اجرا شد. **اجرای واقعی pytest همچنان باید توسط کاربر روی سیستم محلی تأیید شود.**
+**وضعیت اجرا:** مثل همه فازهای قبل، در این محیط دسترسی شبکه برای نصب/اجرای واقعی `pytest` وجود نداشت - `python -m py_compile` روی همه فایل‌های پروژه (قدیم و جدید) بدون خطا اجرا شد. **اجرای واقعی pytest همچنان باید توسط کاربر روی سیستم محلی تأیید شود**، به‌خصوص چون این فاز اولین‌باری است که چند لایه (Orchestrator+ConfidenceEngine+Repository+HTTP) واقعاً با هم اجرا می‌شوند - بررسی محلی اهمیت بیشتری از فازهای قبل دارد.
 
 ## ۸. چه مواردی عمداً برای فازهای بعدی باقی مانده‌اند؟
 
-- **اتصال واقعی `ConfidenceEngine`/`ReviewQueue` به جریان تصحیح دسته‌ای** (فراخوانی بعد از `GradingOrchestrator.grade_question()`) → Phase 5
-- **`app/routers/review.py`** (endpoint های `GET /review-queue`, `POST /review-queue/{result_id}/override`) → Phase 5، بعد از این‌که `GradeResult` قابل ذخیره شد
-- **`GradeResultRepository`** برای ذخیره/بازخوانی نتایج تصحیح از دیتابیس → Phase 5
-- **پر کردن واقعی `image_quality`/`extraction_confidence`** → بعد از MVP، وقتی Image Quality Pipeline و OCR اضافه شوند؛ `ConfidenceEngine` از قبل برای پذیرفتن این مقادیر آماده است و نیازی به تغییر نخواهد داشت
+- **Analytics واقعی** (میانگین کلاس، روند پیشرفت، نقاط قوت/ضعف موضوعی) → Phase 6، حالا با زیرساخت کامل (`topic`, `created_at`, `GradeResult` ذخیره‌شده) آماده است
+- **مقایسه با میانگین کلاس** نیاز به یک Query جدید در سطح `class_id` دارد (فعلاً `GradingService`/`ScoreAggregator` فقط سطح یک آزمون کار می‌کنند) → Phase 6
+- **Rate limiting / timeout handling حرفه‌ای‌تر برای Ollama** در تصحیح دسته‌ای حجیم (الان هر request به Ollama به‌صورت sequential است) → بعد از MVP، اگر کارایی مشکل شد
+- **OCR، PDF، Matching** → همچنان بعد از MVP طبق برنامه اولیه
 
-## ۹. وضعیت فعلی پروژه برای شروع Phase 5 چگونه است؟
+## ۹. وضعیت فعلی پروژه برای شروع Phase 6 چگونه است؟
 
-آماده، **مشروط به تأیید نتیجه سبز `pytest` توسط کاربر روی سیستم محلی** (طبق بند ۷).
+آماده، مشروط به تأیید نتیجه سبز `pytest` روی سیستم محلی.
 
-از نظر معماری، Phase 5 (تصحیح دسته‌ای/تکی + Aggregator) اکنون می‌تواند مستقیماً از سه بلوک آماده استفاده کند:
-- `GradingOrchestrator.grade_question()` از فاز ۲/۳ → تولید `GradeResult` خام
-- `ConfidenceEngine.evaluate()` از فاز ۴ → تکمیل confidence و تعیین status نهایی
-- `ReviewQueue` از فاز ۴ → آماده برای فیلتر/Override همین که نتایج قابل ذخیره شدند
-
-هیچ Blocker شناخته‌شده‌ای وجود ندارد.
+با این فاز، **MVP از نظر عملکردی کامل شد**: از ورود دستی آزمون تا تصحیح (قانون‌محور و LLM)، Confidence، بازبینی/Override، و نمایش نتایج - همه از طریق API واقعی و با دیتابیس دائمی کار می‌کنند. Phase 6 (Analytics) آخرین فاز رسمی MVP است.

@@ -11,6 +11,10 @@ from typing import Annotated
 from fastapi import Depends
 from sqlalchemy.orm import Session
 
+from ai.ollama_provider import OllamaProvider
+from config.settings import get_settings
+from grading.grading_service import GradingService
+from grading.orchestrator import GradingOrchestrator
 from infrastructure.database.session import get_db_session
 from infrastructure.repositories.sql_exam_repository import SqlExamRepository
 from infrastructure.repositories.sql_grade_result_repository import (
@@ -58,3 +62,36 @@ GradeResultRepositoryDep = Annotated[
 SchoolClassRepositoryDep = Annotated[
     SqlSchoolClassRepository, Depends(get_school_class_repository)
 ]
+
+
+def get_llm_client() -> OllamaProvider:
+    # ? هر Request یک instance جدید می‌گیرد - سبک است (فقط نگه‌دارنده تنظیمات)،
+    # ! نیازی به cache کردن نیست. آدرس/مدل از config/settings.py می‌آید تا بدون
+    # ! تغییر کد قابل تنظیم باشد.
+    settings = get_settings()
+    return OllamaProvider(model=settings.ollama_model, base_url=settings.ollama_base_url)
+
+
+def get_grading_orchestrator(
+    llm_client: Annotated[OllamaProvider, Depends(get_llm_client)],
+) -> GradingOrchestrator:
+    return GradingOrchestrator(llm_client=llm_client)
+
+
+def get_grading_service(
+    exam_repository: ExamRepositoryDep,
+    student_repository: StudentRepositoryDep,
+    student_answer_repository: StudentAnswerRepositoryDep,
+    grade_result_repository: GradeResultRepositoryDep,
+    orchestrator: Annotated[GradingOrchestrator, Depends(get_grading_orchestrator)],
+) -> GradingService:
+    return GradingService(
+        exam_repository=exam_repository,
+        student_repository=student_repository,
+        student_answer_repository=student_answer_repository,
+        grade_result_repository=grade_result_repository,
+        orchestrator=orchestrator,
+    )
+
+
+GradingServiceDep = Annotated[GradingService, Depends(get_grading_service)]

@@ -45,6 +45,10 @@ class SqlGradeResultRepository:
 
         self._session.commit()
 
+    def get_by_id(self, grade_result_id: str) -> GradeResult | None:
+        orm_result = self._session.get(GradeResultORM, grade_result_id)
+        return grade_result_from_orm(orm_result) if orm_result else None
+
     def get_by_exam(self, exam_id: str) -> list[GradeResult]:
         orm_results = self._session.scalars(
             select(GradeResultORM).where(GradeResultORM.exam_id == exam_id)
@@ -60,4 +64,8 @@ class SqlGradeResultRepository:
                 GradeResultORM.exam_id == exam_id,
             )
         ).all()
+        return [grade_result_from_orm(r) for r in orm_results]
+
+    def list_all(self) -> list[GradeResult]:
+        orm_results = self._session.scalars(select(GradeResultORM)).all()
         return [grade_result_from_orm(r) for r in orm_results]
