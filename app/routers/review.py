@@ -6,19 +6,25 @@
 
 from fastapi import APIRouter, HTTPException
 
-from app.dependencies import GradeResultRepositoryDep
-from app.schemas import TeacherOverrideRequest
+from app.dependencies import (
+    ExamRepositoryDep,
+    GradeResultRepositoryDep,
+    StudentRepositoryDep,
+)
+from app.schemas import ReviewQueueItemResponse, TeacherOverrideRequest
 from confidence.review_queue import InvalidOverrideScoreError, ReviewQueue
 from domain.models.grading_result import GradeResult
 
 router = APIRouter(prefix="/review-queue", tags=["review"])
 
 
-@router.get("", response_model=list[GradeResult])
+@router.get("", response_model=list[ReviewQueueItemResponse])
 def list_review_queue(
     grade_result_repository: GradeResultRepositoryDep,
+    exam_repository: ExamRepositoryDep,
+    student_repository: StudentRepositoryDep,
     exam_id: str | None = None,
-) -> list[GradeResult]:
+) -> list[ReviewQueueItemResponse]:
     # ? اگر exam_id داده شود، فقط همان آزمون فیلتر می‌شود؛ وگرنه صف بازبینی
     # ? سراسری (همه آزمون‌ها) برمی‌گردد - همان‌طور که در طراحی اولیه پنل خواسته شد.
     all_results = (
@@ -26,7 +32,42 @@ def list_review_queue(
         if exam_id
         else grade_result_repository.list_all()
     )
-    return ReviewQueue.filter_needing_review(all_results)
+    needing_review = ReviewQueue.filter_needing_review(all_results)
+    if not needing_review:
+        return []
+
+    # ! واکشی دسته‌ای: به‌جای یک Query به‌ازای هر آیتم صف (N+1)، فقط سه Query
+    # ! کلی - یکی برای همه دانش‌آموزان درگیر، یکی برای همه آزمون‌ها، یکی برای
+    # ! همه سؤالات - صرف‌نظر از این‌که صف چند ردیف دارد.
+    student_ids = list({result.student_id for result in needing_review})
+    exam_ids = list({result.exam_id for result in needing_review})
+    question_ids = list({result.question_id for result in needing_review})
+
+    students_by_id = {s.id: s for s in student_repository.get_many_by_ids(student_ids)}
+    exams_by_id = {e.id: e for e in exam_repository.get_many_by_ids(exam_ids)}
+    questions_by_id = {
+        q.id: q for q in exam_repository.get_questions_by_ids(question_ids)
+    }
+
+    items = []
+    for result in needing_review:
+        student = students_by_id.get(result.student_id)
+        exam = exams_by_id.get(result.exam_id)
+        question = questions_by_id.get(result.question_id)
+        items.append(
+            ReviewQueueItemResponse(
+                grade_result=result,
+                # ! این مقادیر پیش‌فرض ("نامشخص") فقط برای ناسازگاری داده غیرمنتظره
+                # ! هستند (مثلاً رکورد یتیم) - در جریان عادی همیشه پیدا می‌شوند
+                # ! چون Foreign Key ها این ارتباط را تضمین می‌کنند.
+                student_full_name=student.full_name if student else "نامشخص",
+                student_code=student.student_code if student else None,
+                exam_title=exam.title if exam else "نامشخص",
+                question_text=question.question_text if question else "نامشخص",
+                question_topic=question.topic if question else None,
+            )
+        )
+    return items
 
 
 @router.post("/{grade_result_id}/override", response_model=GradeResult)

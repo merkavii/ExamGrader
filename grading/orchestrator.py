@@ -13,11 +13,13 @@ from domain.models.grading_result import GradeResult
 from domain.models.student import StudentAnswer
 from ai.llm_client import LLMClient
 from grading.base_grader import BaseGrader
+from grading.empty_answer import is_answer_empty
 from grading.graders.essay_grader import EssayGrader
 from grading.graders.multiple_choice_grader import MultipleChoiceGrader
 from grading.graders.numeric_grader import NumericGrader
 from grading.graders.short_answer_grader import ShortAnswerGrader
 from grading.graders.true_false_grader import TrueFalseGrader
+from grading.rule_based_result import build_deterministic_result
 
 
 class UnsupportedQuestionTypeError(Exception):
@@ -53,18 +55,34 @@ class GradingOrchestrator:
     def grade_question(
         self, question: Question, student_answer: StudentAnswer
     ) -> GradeResult:
-        grader = self._graders.get(question.question_type)
-        if grader is None:
-            raise UnsupportedQuestionTypeError(
-                f"No grader registered for question_type={question.question_type}"
-            )
-
         # ! اطمینان از این‌که پاسخ واقعاً متعلق به همین سؤال است - جلوگیری از
         # ! باگ ظریف که یک StudentAnswer اشتباه به Grader سؤال دیگری داده شود.
         if student_answer.question_id != question.id:
             raise ValueError(
                 f"StudentAnswer.question_id ({student_answer.question_id}) does not "
                 f"match Question.id ({question.id})"
+            )
+
+        # ? تشخیص پاسخ خالی همیشه قبل از انتخاب/فراخوانی Grader انجام می‌شود -
+        # ? یعنی قبل از هر تماس احتمالی با LLM. حتی برای نوعی که هنوز Grader
+        # ? واقعی ندارد (مثلاً MATCHING)، پاسخ خالی نیازی به آن Grader ندارد.
+        if is_answer_empty(question.question_type, student_answer.answer_content):
+            return build_deterministic_result(
+                question_id=question.id,
+                student_id=student_answer.student_id,
+                exam_id=question.exam_id,
+                score=0,
+                max_score=question.max_score,
+                reasoning="دانش‌آموز پاسخی برای این سؤال ثبت نکرده است.",
+                # ? نام مجزا و شفاف: هیچ Grader تخصصی‌ای اینجا اجرا نشده -
+                # ? برای Audit/تحلیل بعدی روشن باشد این نمره از کجا آمده.
+                graded_by="EmptyAnswerHandler",
+            )
+
+        grader = self._graders.get(question.question_type)
+        if grader is None:
+            raise UnsupportedQuestionTypeError(
+                f"No grader registered for question_type={question.question_type}"
             )
 
         return grader.grade(question, student_answer)

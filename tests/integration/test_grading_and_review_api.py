@@ -131,7 +131,13 @@ def test_review_queue_and_teacher_override_flow(client: TestClient):
     review_items = review_response.json()
     assert len(review_items) == 1  # فقط سؤال کوتاه‌پاسخ با confidence پایین
 
-    grade_result_id = review_items[0]["id"]
+    # ? فیلدهای نمایشی غنی‌شده باید بدون درخواست جداگانه در دسترس باشند
+    item = review_items[0]
+    assert item["student_full_name"] == "سارا محمدی"
+    assert item["exam_title"] == "آزمون ترکیبی"
+    assert item["question_text"] == "پایتخت ایران؟"
+
+    grade_result_id = item["grade_result"]["id"]
     override_response = client.post(
         f"/review-queue/{grade_result_id}/override",
         json={"final_score": 1, "teacher_reasoning": "معلم تأیید کرد پاسخ درست است"},
@@ -151,7 +157,7 @@ def test_override_rejects_score_above_max(client: TestClient):
     review_items = client.get(
         "/review-queue", params={"exam_id": context["exam_id"]}
     ).json()
-    grade_result_id = review_items[0]["id"]
+    grade_result_id = review_items[0]["grade_result"]["id"]
 
     response = client.post(
         f"/review-queue/{grade_result_id}/override",

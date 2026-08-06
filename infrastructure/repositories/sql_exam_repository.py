@@ -59,3 +59,19 @@ class SqlExamRepository:
             select(QuestionORM).where(QuestionORM.exam_id == exam_id)
         ).all()
         return [question_from_orm(q) for q in orm_questions]
+
+    def get_many_by_ids(self, exam_ids: list[str]) -> list[Exam]:
+        if not exam_ids:
+            return []
+        orm_exams = self._session.scalars(
+            select(ExamORM).where(ExamORM.id.in_(exam_ids))
+        ).all()
+        return [exam_from_orm(orm_exam) for orm_exam in orm_exams]
+
+    def get_questions_by_ids(self, question_ids: list[str]) -> list[Question]:
+        if not question_ids:
+            return []
+        orm_questions = self._session.scalars(
+            select(QuestionORM).where(QuestionORM.id.in_(question_ids))
+        ).all()
+        return [question_from_orm(q) for q in orm_questions]

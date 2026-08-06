@@ -10,6 +10,7 @@ from pydantic import BaseModel
 
 from domain.models.enums import AnswerSource, QuestionType
 from domain.models.exam import CorrectAnswer
+from domain.models.grading_result import GradeResult
 from domain.models.rubric import Rubric
 from domain.models.student import AnswerContent
 
@@ -73,3 +74,21 @@ class TeacherOverrideRequest(BaseModel):
 
     final_score: float
     teacher_reasoning: str
+
+
+class ReviewQueueItemResponse(BaseModel):
+    """
+    ? DTO نمایشی برای یک ردیف صف بازبینی - فقط برای پاسخ API، نه Canonical Schema.
+
+    ! این کلاس عمداً یک wrapper اطراف GradeResult خام است، نه گسترش خود
+    ! GradeResult. نام دانش‌آموز/عنوان آزمون/متن سؤال هیچ‌جا ذخیره نمی‌شوند -
+    ! هر بار از Student/Exam/Question واقعی (با واکشی دسته‌ای، نه N+1) خوانده
+    ! و فقط در همین پاسخ HTTP ترکیب می‌شوند.
+    """
+
+    grade_result: GradeResult
+    student_full_name: str
+    student_code: str | None
+    exam_title: str
+    question_text: str
+    question_topic: str | None

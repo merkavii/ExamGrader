@@ -59,6 +59,16 @@ class SqlStudentRepository:
         orm_students = self._session.scalars(select(StudentORM)).all()
         return [student_from_orm(s) for s in orm_students]
 
+    def get_many_by_ids(self, student_ids: list[str]) -> list[Student]:
+        # ? یک Query با IN(...) به‌جای N Query جدا - همان چیزی که برای صف
+        # ? بازبینی غنی‌شده لازم است.
+        if not student_ids:
+            return []
+        orm_students = self._session.scalars(
+            select(StudentORM).where(StudentORM.id.in_(student_ids))
+        ).all()
+        return [student_from_orm(s) for s in orm_students]
+
 
 class SqlStudentAnswerRepository:
     def __init__(self, session: Session) -> None:

@@ -3,11 +3,23 @@
 # * ==============================================================================
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.routers import analytics, classes, exams, grading, review, sheets, students
+from config.settings import get_settings
 from infrastructure.database.session import init_db
 
 app = FastAPI(title="Exam Grader API", version="0.1.0")
+
+# ? بدون این middleware، Frontend روی origin دیگر (مثلاً localhost:5173) توسط
+# ? مرورگر بلاک می‌شود - این یک پیش‌نیاز فنی محض است، نه منطق تجاری.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=get_settings().cors_allowed_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @app.on_event("startup")

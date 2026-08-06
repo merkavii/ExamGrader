@@ -8,7 +8,12 @@
 
 from fastapi import APIRouter, HTTPException
 
-from app.dependencies import GradingServiceDep
+from app.dependencies import (
+    ExamRepositoryDep,
+    GradeResultRepositoryDep,
+    GradingServiceDep,
+    StudentRepositoryDep,
+)
 from domain.models.grading_result import GradeResult
 from grading.aggregator import ExamScoreSummary
 from grading.grading_service import ExamNotFoundError, StudentNotFoundError
@@ -26,6 +31,25 @@ def grade_single_sheet(
         raise HTTPException(status_code=404, detail="Exam not found")
     except StudentNotFoundError:
         raise HTTPException(status_code=404, detail="Student not found")
+
+
+@router.get("/students/{student_id}/results", response_model=list[GradeResult])
+def get_student_results(
+    exam_id: str,
+    student_id: str,
+    exam_repository: ExamRepositoryDep,
+    student_repository: StudentRepositoryDep,
+    grade_result_repository: GradeResultRepositoryDep,
+) -> list[GradeResult]:
+    # ? برخلاف POST .../grade (که همیشه دوباره تصحیح می‌کند)، این endpoint فقط
+    # ? می‌خواند - نه محاسبه‌ای دارد، نه (برای سؤالات LLM-based) تماسی با Ollama.
+    # ? برای صفحه «نمایش نمره و جزئیات تصحیح» دقیقاً همین لازم است.
+    if not exam_repository.get_by_id(exam_id):
+        raise HTTPException(status_code=404, detail="Exam not found")
+    if not student_repository.get_by_id(student_id):
+        raise HTTPException(status_code=404, detail="Student not found")
+
+    return grade_result_repository.get_by_student_and_exam(student_id, exam_id)
 
 
 @router.post("/grade", response_model=dict[str, list[GradeResult]])

@@ -34,3 +34,11 @@ def create_student(
 @router.get("", response_model=list[Student])
 def list_students(student_repository: StudentRepositoryDep) -> list[Student]:
     return student_repository.list_all()
+
+
+@router.get("/{student_id}", response_model=Student)
+def get_student(student_id: str, student_repository: StudentRepositoryDep) -> Student:
+    student = student_repository.get_by_id(student_id)
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found")
+    return student

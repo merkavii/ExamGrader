@@ -26,6 +26,14 @@ def list_classes(class_repository: SchoolClassRepositoryDep) -> list[SchoolClass
     return class_repository.list_all()
 
 
+@router.get("/{class_id}", response_model=SchoolClass)
+def get_class(class_id: str, class_repository: SchoolClassRepositoryDep) -> SchoolClass:
+    school_class = class_repository.get_by_id(class_id)
+    if not school_class:
+        raise HTTPException(status_code=404, detail="Class not found")
+    return school_class
+
+
 @router.get("/{class_id}/students", response_model=list[Student])
 def list_students_in_class(
     class_id: str,

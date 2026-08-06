@@ -15,6 +15,7 @@ from ai.prompts.short_answer_grading_prompt import build_short_answer_grading_pr
 from domain.models.exam import Question
 from domain.models.student import StudentAnswer
 from grading.base_grader import BaseGrader
+from grading.empty_answer import is_blank_text
 from grading.llm_based_result import build_llm_based_result
 from grading.rule_based_result import build_deterministic_result
 
@@ -26,7 +27,10 @@ class ShortAnswerGrader(BaseGrader):
     def grade(self, question: Question, student_answer: StudentAnswer):
         student_text = student_answer.answer_content.text
 
-        if not student_text:
+        # ! این حالت در جریان عادی هرگز رخ نمی‌دهد چون GradingOrchestrator
+        # ! پاسخ خالی را قبل از رسیدن به اینجا (و قبل از هر تماس با LLM) مدیریت
+        # ! می‌کند - این فقط یک لایه دفاعی دوم است.
+        if is_blank_text(student_text):
             return build_deterministic_result(
                 question_id=question.id,
                 student_id=student_answer.student_id,

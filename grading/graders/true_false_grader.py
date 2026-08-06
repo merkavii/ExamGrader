@@ -9,6 +9,7 @@
 from domain.models.exam import Question
 from domain.models.student import StudentAnswer
 from grading.base_grader import BaseGrader
+from grading.empty_answer import is_blank_text
 from grading.rule_based_result import build_deterministic_result
 
 
@@ -17,7 +18,10 @@ class TrueFalseGrader(BaseGrader):
         selected = student_answer.answer_content.selected_option
         correct = question.correct_answer.selected_option
 
-        if selected is None:
+        # ! این حالت در جریان عادی هرگز رخ نمی‌دهد چون GradingOrchestrator
+        # ! پاسخ خالی را قبل از رسیدن به اینجا مدیریت می‌کند - این فقط یک لایه
+        # ! دفاعی دوم است.
+        if is_blank_text(selected):
             return build_deterministic_result(
                 question_id=question.id,
                 student_id=student_answer.student_id,
