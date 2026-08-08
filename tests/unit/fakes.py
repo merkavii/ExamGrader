@@ -1,10 +1,11 @@
 # * ==============================================================================
-# *                      FakeLLMClient (Test Double)
+# *                      Test Doubles (Fakes)
 # * ==============================================================================
-# ? این کلاس فقط برای تست است - جایگزین OllamaProvider واقعی می‌شود تا
-# ? Grader ها بدون نیاز به سرور Ollama واقعی قابل تست باشند.
+# ? این فایل فقط برای تست است - جایگزین سرویس‌های خارجی واقعی (Ollama، Tesseract)
+# ? می‌شود تا Grader ها و Extractor ها بدون نیاز به آن سرویس‌ها قابل تست باشند.
 
 from ai.llm_client import LLMClient
+from ocr.ocr_client import OCRClient, OCRLine, OCRResult
 
 
 class FakeLLMClient(LLMClient):
@@ -22,3 +23,18 @@ class RaisingLLMClient(LLMClient):
 
     def complete(self, prompt: str) -> str:
         raise ConnectionError("Simulated LLM connection failure")
+
+
+class FakeOCRClient(OCRClient):
+    """? جایگزین TesseractOCRClient واقعی - بدون نیاز به باینری/بسته زبان نصب‌شده."""
+
+    def __init__(self, lines: list[OCRLine]) -> None:
+        self._lines = lines
+
+    def extract_text(self, image_bytes: bytes) -> OCRResult:
+        overall = (
+            sum(line.confidence for line in self._lines) / len(self._lines)
+            if self._lines
+            else 0
+        )
+        return OCRResult(lines=self._lines, overall_confidence=overall)

@@ -15,8 +15,8 @@ app = FastAPI(title="Exam Grader API", version="0.1.0")
 # ? مرورگر بلاک می‌شود - این یک پیش‌نیاز فنی محض است، نه منطق تجاری.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=get_settings().cors_allowed_origins,
-    allow_credentials=True,
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )

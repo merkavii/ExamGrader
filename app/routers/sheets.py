@@ -5,15 +5,17 @@
 # ? یک آزمون مشخص. این یک Entity مستقل در Domain نیست - فقط ترکیبی از
 # ? StudentAnswer های موجود برای نمایش راحت‌تر در پنل معلم.
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, File, HTTPException, UploadFile
 
 from app.dependencies import (
+    AnswerSheetExtractorDep,
     ExamRepositoryDep,
     StudentAnswerRepositoryDep,
     StudentRepositoryDep,
 )
 from app.schemas import SheetStatusResponse, SheetSubmitRequest
 from domain.models.student import StudentAnswer
+from extraction.answer_sheet_extractor import AnswerSheetExtractionResult
 from input.manual.manual_input_handler import build_student_answer_from_manual_input
 
 router = APIRouter(prefix="/exams/{exam_id}/students/{student_id}/answers", tags=["sheets"])
@@ -57,6 +59,41 @@ def submit_sheet(
         saved_answers.append(answer)
 
     return saved_answers
+
+
+@router.post("/extract-from-image", response_model=AnswerSheetExtractionResult)
+async def extract_answers_from_image(
+    exam_id: str,
+    student_id: str,
+    exam_repository: ExamRepositoryDep,
+    student_repository: StudentRepositoryDep,
+    extractor: AnswerSheetExtractorDep,
+    image: UploadFile = File(...),
+) -> AnswerSheetExtractionResult:
+    """
+    ? یک عکس از برگه پاسخ دانش‌آموز می‌گیرد و پیشنهاد پاسخ هر سؤال را برمی‌گرداند.
+
+    ! این endpoint هیچ‌چیز در دیتابیس ذخیره نمی‌کند - فقط "پیشنهاد" است. ثبت
+    ! نهایی همچنان از طریق POST .../answers (همین روتر، بالاتر) با
+    ! source="image" انجام می‌شود؛ معلم باید قبل از آن نتیجه را در Frontend
+    ! ببیند و در صورت نیاز اصلاح کند - طبق قانون همیشگی این پروژه.
+    """
+    if not exam_repository.get_by_id(exam_id):
+        raise HTTPException(status_code=404, detail="Exam not found")
+    if not student_repository.get_by_id(student_id):
+        raise HTTPException(status_code=404, detail="Student not found")
+
+    if not image.content_type or not image.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="Uploaded file must be an image")
+
+    questions = exam_repository.list_questions(exam_id)
+    if not questions:
+        raise HTTPException(
+            status_code=400, detail="Exam has no questions to extract answers for"
+        )
+
+    image_bytes = await image.read()
+    return extractor.extract(image_bytes, questions)
 
 
 @router.get("", response_model=list[StudentAnswer])

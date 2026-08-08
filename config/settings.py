@@ -18,6 +18,11 @@ class Settings(BaseSettings):
     # ! محدود شود، نه "*".
     cors_allowed_origins: list[str] = ["*"]
 
+    # ? زبان(های) Tesseract - "fas+eng" نیاز به نصب بسته tesseract-ocr-fas دارد
+    # ! (از طریق apt). بدون آن، تشخیص متن فارسی نادرست خواهد بود؛ این تنظیم
+    # ! باعث می‌شود بدون تغییر کد بشود بین حالت‌ها سوییچ کرد.
+    ocr_language: str = "fas+eng"
+
 
 @lru_cache
 def get_settings() -> Settings:

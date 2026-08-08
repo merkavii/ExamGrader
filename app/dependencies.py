@@ -15,6 +15,7 @@ from ai.ollama_provider import OllamaProvider
 from analytics.class_analytics import ClassAnalyticsService
 from analytics.student_analytics import StudentAnalyticsService
 from config.settings import get_settings
+from extraction.answer_sheet_extractor import AnswerSheetExtractor
 from grading.grading_service import GradingService
 from grading.orchestrator import GradingOrchestrator
 from infrastructure.database.session import get_db_session
@@ -29,6 +30,8 @@ from infrastructure.repositories.sql_student_repository import (
     SqlStudentAnswerRepository,
     SqlStudentRepository,
 )
+from ocr.ocr_client import OCRClient
+from ocr.tesseract_ocr_client import TesseractOCRClient
 
 DbSession = Annotated[Session, Depends(get_db_session)]
 
@@ -122,4 +125,22 @@ ClassAnalyticsServiceDep = Annotated[
 ]
 StudentAnalyticsServiceDep = Annotated[
     StudentAnalyticsService, Depends(get_student_analytics_service)
+]
+
+
+def get_ocr_client() -> OCRClient:
+    # ? مثل get_llm_client - سبک است، نیازی به cache ندارد. زبان از تنظیمات
+    # ? می‌آید تا بدون تغییر کد قابل عوض‌کردن باشد (مثلاً وقتی فقط انگلیسی لازم است).
+    settings = get_settings()
+    return TesseractOCRClient(language=settings.ocr_language)
+
+
+def get_answer_sheet_extractor(
+    ocr_client: Annotated[OCRClient, Depends(get_ocr_client)],
+) -> AnswerSheetExtractor:
+    return AnswerSheetExtractor(ocr_client=ocr_client)
+
+
+AnswerSheetExtractorDep = Annotated[
+    AnswerSheetExtractor, Depends(get_answer_sheet_extractor)
 ]

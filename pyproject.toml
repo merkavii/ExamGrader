@@ -10,6 +10,11 @@ dependencies = [
     "sqlalchemy>=2.0",
     "httpx",
     "requests",
+    "python-multipart",
+    "opencv-python-headless",
+    "pytesseract",
+    "pillow",
+    "numpy",
 ]
 
 [project.optional-dependencies]
